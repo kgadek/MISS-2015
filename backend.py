@@ -85,7 +85,11 @@ def f(x,a,b):
       File "<stdin>", line 1, in <module>
     ValueError: math domain error
     """
-    return m.log(a * x) * m.sin(1./(b+x))
+    try:
+        return m.log(a * x) * m.sin(1./(b+x))
+    except Exception as e:
+        return -infinity
+    
 
 def newton_find(f, df, x, iters=10):
     log.debug("newton_find x=%.4f", x)
@@ -124,14 +128,16 @@ def rand_round(x):
 
     >>> rand_round(0)
     0
-    >>> rand_round(0.0000001)
+    >>> rand_round(0.001)
+    0
+    >>> rand_round(-0.001)
     0
     >>> random.seed(1); rand_round(0.9)
     0
     >>> random.seed(2); rand_round(0.9)
     1
     """
-    if abs(x - round(x)) < 0.000001:
+    if abs(x - round(x)) < 0.01:
         return round(x)
     low = m.floor(x)
     hi  = m.ceil(x)
@@ -157,27 +163,27 @@ class Board:
                 for row in range(rows)
                ]
     
-    class BoardOYProxy:
+    class BoardColumnAccessProxy:
         """ The proxy that allows nice syntax for accessing board.
 
         You can therefore access with floats (will be rounded down) or outside
         of the board (it wraps around).
         """
-        def __init__(self, row, cols_count):
-            log.debug("Board.BoardOYProxy.__init__(row, %d)", cols_count)
-            self.row = row
+        def __init__(self, column, cols_count):
+            log.debug("Board.BoardColumnAccessProxy.__init__(column, %d)", cols_count)
+            self.column = column
             self.cols_count = cols_count
-        def __getitem__(self, rowid):
-            rowid = int(rowid) % self.cols_count
-            return self.row[rowid]
-        def __setitem__(self, rowid, val):
-            rowid = int(rowid) % self.cols_count
-            self.row[rowid] = val
+        def __getitem__(self, colid):
+            colid = int(colid) % self.cols_count
+            return self.column[colid]
+        def __setitem__(self, colid, val):
+            colid = int(colid) % self.cols_count
+            self.column[colid] = val
 
     def __getitem__(self, rowid):
         """ Nice accessor for board.
 
-        Works nicely with BoardOYProxy to offer:
+        Works nicely with BoardColumnAccessProxy to offer:
          * accessing with floats - they will be just truncated
          * accessing with out-of-bounds values – the board wraps around (forms torus)
 
@@ -191,7 +197,7 @@ class Board:
         123
         """
         log.debug("accessing %d but actually %d limit %d", rowid, int(rowid) % self.rows, len(self.matrix))
-        return Board.BoardOYProxy(self.matrix[int(rowid) % self.rows], self.cols)
+        return Board.BoardColumnAccessProxy(self.matrix[int(rowid) % self.rows], self.cols)
 
     def step(self):
         """ Perform one step of the simulation. """
@@ -232,12 +238,16 @@ class Board:
             x = random.randrange(0, self.rows)
             y = random.randrange(0, self.cols)
             if not self[x][y]:
-                a = radians_normalize(random.uniform(0, 2*m.pi))
-                self[x][y] = Bird(a)
-                log.info("adding random bird randomly to the board. XY = (%d,%d) angle = %.4f", x, y, a)
+                a = random.uniform(0, 2*m.pi)
+                self.add_bird(x, y, a)
+
+                log.info("adding random bird randomly to the board. row,col = (%d,%d) angle = %.4f", x, y, a)
                 break
             else:
                 log.debug("adding random bird fial'd: position (%d,%d) is already occupied. Retrying", x, y)
+
+    def add_bird(self, x, y, a):
+        self[x][y] = Bird(radians_normalize(a))
 
     @staticmethod
     def distances_wrapped_on_torus(x, y, xx, yy, rows, cols):
@@ -251,26 +261,26 @@ class Board:
         I've picked the second one. Shall be more fun :)
 
         >>> list( Board.distances_wrapped_on_torus(0, 0, 1, 1, 3, 5) )
-        [(1, 1), (4, 1), (1, 2), (4, 2)]
+        [(1, 1), (1, -4), (-2, -4), (-2, 1)]
 
-        #  |       |       |       |
-        #  |       |       |       +- distance when wrapping around top and left border
-        #  |       |       +--------- distance when wrapping around top border
-        #  |       +----------------- distance when wrapping around left border
-        #  +------------------------- simple distance: 1 on OX, 1 on OY
+        #  |        |        |        |
+        #  |        |        |        +- distance when wrapping around top border
+        #  |        |        +---------- distance when wrapping around top and left border
+        #  |        +------------------- distance when wrapping around left border
+        #  +---------------------------- simple distance: 1 on OX, 1 on OY
         #
         #
         #                      A    A    A
-        #  +-----+              B    B    B
-        #  |A    |           
-        #  | B   |  ===>       A    A    A
-        #  |     |        ...   B    B    B  ...
-        #  +-----+           
+        #  +-----+              B    B    B                   3    4
+        #  |A    |
+        #  | B   |  ===>       A    A    A        ===>            A
+        #  |     |        ...   B    B    B  ...        ...   2    1
+        #  +-----+
         #                      A    A    A
         #                       B    B    B
 
         >>> list( Board.distances_wrapped_on_torus(0, 0, 1, 1, 2, 2) )
-        [(1, 1), (1, 1), (1, 1), (1, 1)]
+        [(1, 1), (1, -1), (-1, -1), (-1, 1)]
 
         #
         #                  A A A 
@@ -280,14 +290,10 @@ class Board:
         #  +--+            A A A 
         #                   B B B
         """
-        if x < xx:
-            x, xx = xx, x
-        if y < yy:
-            y, yy = yy, y
-        yield (abs(x - xx       ), abs(y - yy       ))
-        yield (abs(cols - x + xx), abs(y - yy       ))
-        yield (abs(x - xx       ), abs(rows - y + yy))
-        yield (abs(cols - x + xx), abs(rows - y + yy))
+        yield (yy-y),      (xx-x)
+        yield (yy-y),      (xx-x-cols)
+        yield (yy-y-rows), (xx-x-cols)
+        yield (yy-y-rows), (xx-x)
         
     def newangles(self):
         """ Recalculate the direction of all birds. """
@@ -310,13 +316,15 @@ class Board:
 
         # gather results
         for (k, k_x, k_y), g in itertools.groupby(perms, key=itemgetter(0)):
-            other_birds = itertools.chain.from_iterable(
-                              # for each bird pair, generate four distances (aka. influences)
-                              Board.distances_wrapped_on_torus(k_x, k_y, b_x, b_y, self.rows, self.cols)
-                              for _, (b, b_x, b_y) in g
-                          )
-            # each bird is influenced by 4(B-1) birds
-            k.newangle(other_birds)
+            k.newangle(                                        # new angle for the bird
+                itertools.chain.from_iterable(                 # is based on relative position
+                    Board.distances_wrapped_on_torus(k_x, k_y, # of all of the other birds
+                                                     b_x, b_y,
+                                                     self.rows, self.cols
+                                                    )
+                    for _, (b, b_x, b_y) in g
+                )
+            )
 
 
 # ##############################################################################
@@ -347,7 +355,7 @@ class Bird:
         >>> print(Bird(m.pi + m.pi * 0.123))
         ←
         >>> print(''.join(str(  Bird(m.pi * ang  )) for ang in [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75]))
-        →↗↑↖←↙↓↘
+        →↘↓↙←↖↑↗
         """
         pi  = m.pi
         pi2 = m.pi * 0.5
@@ -356,13 +364,13 @@ class Bird:
         direction = radians_normalize(self.direction + pi8)
         ranges = [
             (0*pi4, 1*pi4, '→' ),
-            (1*pi4, 2*pi4, '↗' ),
-            (2*pi4, 3*pi4, '↑' ),
-            (3*pi4, 4*pi4, '↖' ),
+            (1*pi4, 2*pi4, '↘' ),
+            (2*pi4, 3*pi4, '↓' ),
+            (3*pi4, 4*pi4, '↙' ),
             (4*pi4, 5*pi4, '←' ),
-            (5*pi4, 6*pi4, '↙' ),
-            (6*pi4, 7*pi4, '↓' ),
-            (7*pi4, 8*pi4, '↘' )
+            (5*pi4, 6*pi4, '↖' ),
+            (6*pi4, 7*pi4, '↑' ),
+            (7*pi4, 8*pi4, '↗' )
         ]
         for r_from, r_to, res in ranges:
             if r_from <= direction < r_to:
@@ -376,41 +384,47 @@ class Bird:
         """ Return new position where the bird wants to be.
 
         >>> Bird(0).step(0,0)
-        (5, 0)
+        (0, 5)
 
         >>> Bird(m.pi).step(0,0)
-        (-5, 0)
+        (0, -5)
+
+        >>> Bird(m.pi / 2).step(0,0)
+        (5, 0)
         """
-        new_x = rand_round(old_x + m.cos(self.direction) * V)
-        new_y = rand_round(old_y + m.sin(self.direction) * V)
+        new_x = rand_round(old_x + V * m.sin(self.direction))
+        new_y = rand_round(old_y + V * m.cos(self.direction))
         log.debug("old: (%d,%d) new: (%d,%d)", old_x, old_y, new_x, new_y)
         return new_x, new_y
 
     def newangle(self, other_birds: ':: (distance_x, distance_y)'):
         """ Calculate new angle basing on other birds.
 
-        >>> b=Bird(0); print(b.newangle(  []  ),       b)
+        >>> b=Bird(0);    print(b.newangle(  []  ),      b)
         0.0 →
 
-        >>> b=Bird(0); print(b.newangle(  [(1,0)]  ),  b)
-        0.0 →
-
-        >>> b=Bird(0); print(b.newangle(  [(-1,0)]  ), b)
+        >>> b=Bird(m.pi); print(b.newangle(  []  ),      b)
         3.141592653589793 ←
 
-        >>> b=Bird(0); print(b.newangle(  [(0,1)]  ),  b)
-        1.5707963267948966 ↑
+        >>> b=Bird(0);    print(b.newangle(  [(2,0)]  ), b)
+        1.5707963267948966 ↓
 
-        >>> b=Bird(0); print(b.newangle(  [(0,-1)]  ),  b)
-        4.71238898038469 ↓
+        >>> b=Bird(0);    print(b.newangle(  [(-2,0)]  ), b)
+        4.71238898038469 ↑
+
+        >>> b=Bird(0);    print(b.newangle(  [(0,2)]  ), b)
+        0.0 →
+
+        >>> b=Bird(0);    print(b.newangle(  [(0,-2)]  ), b)
+        3.141592653589793 ←
         """
         other_birds = list(other_birds)
         if other_birds:  # short-circuit in case of only one bird: do not change direction
             oldangle = self.direction
             influences = [ self.distance_fun( m.sqrt(dx**2 + dy**2) ) for dx, dy in other_birds ]
-            sum_dx = sum( influence * distance_x for (distance_x, distance_y), influence in zip(other_birds, influences) )
-            sum_dy = sum( influence * distance_x for (distance_x, distance_y), influence in zip(other_birds, influences) )
-            self.direction = m.atan2(sum_dx, sum_dy) + m.pi
+            sum_drows = sum( 1. * distance_x for (distance_x, distance_y), influence in zip(other_birds, influences) )
+            sum_dcols = sum( 1. * distance_y for (distance_x, distance_y), influence in zip(other_birds, influences) )
+            self.direction = radians_normalize(-m.atan2(sum_dcols, sum_drows) + m.pi/2)
             # TODO [kgdk] 29 mar 2015: make the change of direction a bit slower
             log.debug("bird %d old angle = %.4f new angle = %.4f", self.id, oldangle, self.direction)
         return self.direction
@@ -425,23 +439,26 @@ def main():
     import doctest
     doctest.testmod()
 
-    # board = Board(N, M)
-    # board.add_random_bird()
-    # board.add_random_bird()
-    # board.add_random_bird()
-    # board.add_random_bird()
-    # board.add_random_bird()
-    # board.add_random_bird()
-    # board.add_random_bird()
-    # board.add_random_bird()
-    # board.add_random_bird()
-    # board.add_random_bird()
+    board = Board(10, 20)
+    board.add_random_bird()
+    board.add_random_bird()
+    board.add_random_bird()
+    board.add_random_bird()
+    board.add_random_bird()
+    board.add_random_bird()
+    board.add_random_bird()
+    board.add_random_bird()
+    board.add_random_bird()
+    board.add_random_bird()
+    print(board)
 
-    # print(board)
 
-    # board.newangles()
-    # board.step()
-    # print(board)
+    for i in range(109):
+        board.newangles()
+        board.step()
+    print(board)
+
+
 
     # board.newangles()
     # board.step()
