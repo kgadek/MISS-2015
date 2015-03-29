@@ -15,6 +15,7 @@ import copy
 from contextlib import suppress
 from functools import partial
 
+from bottle import route, run, template
 
 # ##############################################################################
 # settings
@@ -431,6 +432,8 @@ class Bird:
     
 
 
+
+
 # ##############################################################################
 # the program
 # ##############################################################################
@@ -483,5 +486,22 @@ def main():
     # print_board(newboard)
 
 
+game = None
+
+@route('/new/<rows:int>/<cols:int>/<birds:int>')
+def mknew(rows,cols,birds):
+    global game
+    game = Board(rows,cols)
+    for i in range(birds):
+        game.add_random_bird()
+    return str(game)
+
+@route('/step')
+def gamestep():
+    global game
+    game.step()
+    return str(game)
+
 if __name__ == '__main__':
-    main()
+    # main()
+    run(host='localhost', port=8080)
