@@ -55,21 +55,28 @@ var goL = (function(){
   }
   
   goL.update = function(){
-    for(var p=0; p<bits; p++){
-      var q = p>>>7, r=p&127;// quotient and reminder
-      var n=  (q>0 && r>0 ? goL.get(p-129): 0) + // number of neighbours
-          (q>0 ? goL.get(p-128): 0) + 
-          (q>0 && r<127 ? goL.get(p-127): 0)+ 
-          (r>0 ? goL.get(p-1): 0) + 
-          (r<127 ? goL.get(p+1): 0)+ 
-          (q<63 && r>0 ? goL.get(p+127): 0)+ 
-          (q<63  ? goL.get(p+128): 0)+ 
-          (q<63 && r<127 ? goL.get(p+129): 0);
-          
-      if(n<=1 || n>3) goL.put(p, 0, 1-i);
-      else if(n==2) goL.put(p, goL.get(p), 1-i);
-      else goL.put(p, 1, 1-i);
-    }
+    $.ajax({
+      url: "step",
+      async: false,
+      success: function(res) {
+        resjson = JSON.parse(res);
+        resptr = 0;
+
+        console.log("YAYAYA!", res.me);
+
+        for(var p=0; p<bits; p++){
+          if(resjson[resptr]['xy'] === p){
+            goL.put(p, 1, 1-i);
+            if(resptr+1 < resjson.length){
+                resptr = resptr + 1;
+            }
+          } else {
+            goL.put(p, 0, 1-i);
+          }
+        }
+      }
+    });
+
     i=1-i;// switch current
     rects.style("fill",function(d){ return goL.get(d)==1? "steelblue":"white";});
     

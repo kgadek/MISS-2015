@@ -521,8 +521,18 @@ def mknew(rows,cols,birds):
 @route('/step')
 def gamestep():
     global game
+    if not game:
+        game = Board(64,128)
+        for i in range(30):
+            game.add_random_bird()
+
     game.step()
-    return str(game)
+
+    if bottle.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return game.tojson()
+    else:
+        return str(game)
+
 
 apps = bottle.app()
 
@@ -542,7 +552,6 @@ class EnableCors(object):
                 return fn(*args, **kwargs)
 
         return _enable_cors
-
 
 
 
