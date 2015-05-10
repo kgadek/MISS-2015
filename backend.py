@@ -17,6 +17,8 @@ from functools import partial
 import bottle
 from bottle import route, run, template, response, static_file
 
+import json
+
 # ##############################################################################
 # settings
 # ##############################################################################
@@ -68,18 +70,22 @@ def ddf(x,a,b):
 
 def f(x,a,b):
     """ The distance function. This drives the bird.
+
     >>> all( f(1/a, a, 1) == 0.0 for a in range(1,15) )
     True
+
     # Assert the maximum of a function is at the right place
+
     >>> newton_find(partial(df,a=3,b=5), partial(ddf,a=3,b=5), 1./3)
     3.6303997623856503
+
     # Verify (sort of) that function is strictly decreasing
+
     >>> f(100, 1, 1) > f(1000, 1, 1) > f(10000, 1, 1) > f(100000, 1, 1) > f(1000000, 1, 1)
     True
+
     >>> f(0, 1, 1)
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in <module>
-    ValueError: math domain error
+    -inf
     """
     try:
         return m.log(a * x) * m.sin(1./(b+x))
@@ -103,9 +109,12 @@ def euclid_dist(xy1, xy2):
     """ Euclidean distance.
     >>> euclid_dist((0,0), (0,0))
     0.0
+
     >>> euclid_dist((1,0), (0,0))
     1.0
+
     # euclid_dist is commutative
+
     >>> all(  euclid_dist((x1,y1),(x2,y2)) == euclid_dist((x2,y2),(x1,y1))  for x1,y1,x2,y2 in itertools.product(list(frange(-2.8, 2.8, 0.7)), repeat=4)  )
     True
     """
@@ -245,8 +254,10 @@ class Board:
           * even though two birds are close to each other, we take into account the influence
             when going around the wrapping.
         I've picked the second one. Shall be more fun :)
+        
         >>> list( Board.distances_wrapped_on_torus(0, 0, 1, 1, 3, 5) )
         [(1, 1), (1, -4), (-2, -4), (-2, 1)]
+
         #  |        |        |        |
         #  |        |        |        +- distance when wrapping around top border
         #  |        |        +---------- distance when wrapping around top and left border
@@ -262,8 +273,10 @@ class Board:
         #  +-----+
         #                      A    A    A
         #                       B    B    B
+        
         >>> list( Board.distances_wrapped_on_torus(0, 0, 1, 1, 2, 2) )
         [(1, 1), (1, -1), (-1, -1), (-1, 1)]
+        
         #
         #                  A A A 
         #  +--+             B B B
