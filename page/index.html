@@ -1,44 +1,69 @@
-<!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="birds.css">
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
-<script src="http://d3js.org/d3.v3.min.js"></script>
-<script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
-<script src="birds.js"></script>
-<title>Birds</title>
+  <title>Conway's Game of Life</title>
+  <style>
+    body{
+      width:960px;
+      margin:0 auto;
+      }
+    rect{
+      stroke:rgba(204, 204,204,0.2);
+      shape-rendering:crispEdges;
+    }
+    .edit:hover{
+      stroke:steelblue;
+      cursor:pointer;
+    }
+    select{
+      width:80px;
+    }
+    button{
+      min-width:50px;
+      padding: 0 40px;
+    }
+  </style>
 </head>
-<body><form>
-<input type ="submit" id ="step" value = "Step"></form>
-<input type ="submit" id ="play" value = "PLAY"></form>
-<form id ="form">
-<table>
-<tr>
-	<td>Rows
-	</td>
-	<td><input type="text" id="rows" value = "40" />
-	</td>
-</tr>
-<tr>
-	<td>Columns
-	</td>
-	<td><input type="text" id="columns" value = "40" />
-	</td>
-</tr>
-<tr>
-	<td>Birds
-	</td>
-	<td><input type="text" id="birds" value = "100"/>
-	</td>
-</tr>
-</table>
-<input type="submit" id ="start" value="Start!"/>
-</form>
-<div id="responseText"></div>
+<body><section style="display:block;">
+Sample Patterns: <select onchange="changeUniv(this)"></select>
+<button type="button" onClick="newUniv()">New</button>
+<button type="button" onClick="startUniv()" id='startBtn'>Start</button>
+</section>
+<svg width='796' height='448'></svg>
 
-<svg id="svg">
-</svg>
-</body>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="goL.js"></script>
+<script src="goL games.js"></script>
 
-</html>
+<script>
+function newUniv(){
+  goL.setGrid();
+  goL.editMode(true);
+  d3.select("#startBtn").html("Start");
+}
+
+function startUniv(){
+  if(d3.select("#startBtn").html()=="Start"){
+    d3.select("#startBtn").html("Pause");
+    goL.editMode(false);
+    goL.update();
+  }else{
+    d3.select("#startBtn").html("Start");
+    goL.editMode(true);
+    goL.clearTimeout();
+  }
+}
+
+function changeUniv(t){
+  goL.setGrid(games[t.options[t.selectedIndex].value]);
+  d3.select("#startBtn").html("Start");
+  goL.editMode(true);
+}
+
+d3.select("select").selectAll("option").data(d3.keys(games))
+    .enter().append("option").attr("value",function(d){ return d;})
+    .text(function(d){return d;});
+
+goL.setGrid(games.Planes);
+startUniv();
+
+</script>
