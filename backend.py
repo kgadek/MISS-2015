@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("backend")
 
 import random
-random.seed()
+random.seed(a=2)  # TODO: seed hardcoded for reproductibility while debugging. REMOVE at will
 
 import math as m
 from operator import itemgetter
