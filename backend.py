@@ -9,11 +9,12 @@ import random
 random.seed(a=2)  # TODO: seed hardcoded for reproductibility while debugging. REMOVE at will
 
 import math as m
-from operator import itemgetter
 import itertools
 import copy
+from operator   import itemgetter
+from functools  import partial
 from contextlib import suppress
-from functools import partial
+
 import bottle
 from bottle import route, run, template, response, static_file
 
