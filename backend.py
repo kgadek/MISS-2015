@@ -527,6 +527,9 @@ def server_static(filepath):
 	
 if __name__ == '__main__':
     # main()
+    import doctest
+    doctest.testmod()
+
     apps.install(EnableCors())
     apps.run(host='localhost', port=8080)
 	
