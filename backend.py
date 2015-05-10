@@ -229,11 +229,29 @@ class Board:
         return ''.join(helper())  # works a bit like "like stringbuilder"
 
     def tojson(self):
-        """ Returns a list of bird coordinates.
+        """ Returns a list of bird coordinates in order suited for a particular use.
+        
         >>> Board(2,5).tojson()
         '[]'
+
+        >>> board=Board(10, 20); board.add_bird(2,1,0);                                                                       json.loads(board.tojson()) == [{"x": 2, "y": 1, "xy": 12, "dir": 0.0}]
+        True
+
+        >>> board=Board(10, 20); board.add_bird(2,1,0); board.add_bird(1,2,0);                                                json.loads(board.tojson()) == [{'y': 1, 'x': 2, 'dir': 0.0, 'xy': 12}, {'y': 2, 'x': 1, 'dir': 0.0, 'xy': 21}]
+        True
+
+        >>> from backend import *; board=Board(10, 20); board.add_bird(2,1,0); board.add_bird(1,2,0); board.add_bird(0,0,0);  json.loads(board.tojson()) == [{'y': 0, 'x': 0, 'dir': 0.0, 'xy': 0}, {'y': 1, 'x': 2, 'dir': 0.0, 'xy': 12}, {'y': 2, 'x': 1, 'dir': 0.0, 'xy': 21}]
+        True
         """
-        return json.dumps([])
+        elems = [ {"x": y, "y": x, "xy": x*self.rows + y, "dir": radians_normalize(elem.direction)}
+                  for y, row
+                  in enumerate(self.matrix)
+                  for x, elem
+                  in enumerate(row)
+                  if elem
+                ]
+        elems = sorted(elems, key=lambda dct: dct['xy'])
+        return json.dumps(elems)
 
     def add_random_bird(self):
         """ Generate a random Bird and place it on the board. """
@@ -384,10 +402,13 @@ class Bird:
 
     def step(self, old_x, old_y):
         """ Return new position where the bird wants to be.
+        
         >>> Bird(0).step(0,0)
         (0, 5)
+        
         >>> Bird(m.pi).step(0,0)
         (0, -5)
+        
         >>> Bird(m.pi / 2).step(0,0)
         (5, 0)
         """
@@ -398,16 +419,22 @@ class Bird:
 
     def newangle(self, other_birds: ':: (distance_x, distance_y)'):
         """ Calculate new angle basing on other birds.
+        
         >>> b=Bird(0);    print(b.newangle(  []  ),      b)
         0.0 →
+        
         >>> b=Bird(m.pi); print(b.newangle(  []  ),      b)
         3.141592653589793 ←
+        
         >>> b=Bird(0);    print(b.newangle(  [(2,0)]  ), b)
         1.5707963267948966 ↓
+        
         >>> b=Bird(0);    print(b.newangle(  [(-2,0)]  ), b)
         4.71238898038469 ↑
+        
         >>> b=Bird(0);    print(b.newangle(  [(0,2)]  ), b)
         0.0 →
+        
         >>> b=Bird(0);    print(b.newangle(  [(0,-2)]  ), b)
         3.141592653589793 ←
         """
