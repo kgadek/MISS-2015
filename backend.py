@@ -228,6 +228,13 @@ class Board:
             yield header
         return ''.join(helper())  # works a bit like "like stringbuilder"
 
+    def tojson(self):
+        """ Returns a list of bird coordinates.
+        >>> Board(2,5).tojson()
+        '[]'
+        """
+        return json.dumps([])
+
     def add_random_bird(self):
         """ Generate a random Bird and place it on the board. """
         while True:
