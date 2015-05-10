@@ -20,6 +20,9 @@ from bottle import route, run, template, response, static_file
 
 import json
 
+from pathlib import Path
+
+
 # ##############################################################################
 # settings
 # ##############################################################################
@@ -550,7 +553,12 @@ def lvambience():
 	
 @route('/<filepath:path>')
 def server_static(filepath):
-    return static_file(filepath, root='C:\\Miss\\page')
+    pwd = Path('.') / 'page'
+    return static_file(filepath, root=str(pwd.resolve()))
+
+@route('/')
+def default():
+    return bottle.redirect("/index.html")
 	
 if __name__ == '__main__':
     # main()
