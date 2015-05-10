@@ -14,8 +14,8 @@ import itertools
 import copy
 from contextlib import suppress
 from functools import partial
-
-from bottle import route, run, template
+import bottle
+from bottle import route, run, template, response, static_file
 
 # ##############################################################################
 # settings
@@ -31,7 +31,6 @@ V = 5 # [m/s] velocity of [European] unladden swallow is 11, but let's limit thi
 
 def frange(start, stop, step):
     """ Helper. Generate range of floats.
-
     >>> list(frange(1.0, 2.0, 0.25))
     [1.0, 1.25, 1.5, 1.75]
     """
@@ -69,18 +68,14 @@ def ddf(x,a,b):
 
 def f(x,a,b):
     """ The distance function. This drives the bird.
-
     >>> all( f(1/a, a, 1) == 0.0 for a in range(1,15) )
     True
-
     # Assert the maximum of a function is at the right place
     >>> newton_find(partial(df,a=3,b=5), partial(ddf,a=3,b=5), 1./3)
     3.6303997623856503
-
     # Verify (sort of) that function is strictly decreasing
     >>> f(100, 1, 1) > f(1000, 1, 1) > f(10000, 1, 1) > f(100000, 1, 1) > f(1000000, 1, 1)
     True
-
     >>> f(0, 1, 1)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
@@ -106,13 +101,10 @@ def newton_find(f, df, x, iters=10):
 
 def euclid_dist(xy1, xy2):
     """ Euclidean distance.
-
     >>> euclid_dist((0,0), (0,0))
     0.0
-
     >>> euclid_dist((1,0), (0,0))
     1.0
-
     # euclid_dist is commutative
     >>> all(  euclid_dist((x1,y1),(x2,y2)) == euclid_dist((x2,y2),(x1,y1))  for x1,y1,x2,y2 in itertools.product(list(frange(-2.8, 2.8, 0.7)), repeat=4)  )
     True
@@ -126,7 +118,6 @@ def rand_round(x):
     If the number is integer (up to given precision), return the int.
     Otherwise, randomly chose if to return the bigger or the smaller
     int (ceil or floor).
-
     >>> rand_round(0)
     0
     >>> rand_round(0.001)
@@ -166,7 +157,6 @@ class Board:
     
     class BoardColumnAccessProxy:
         """ The proxy that allows nice syntax for accessing board.
-
         You can therefore access with floats (will be rounded down) or outside
         of the board (it wraps around).
         """
@@ -183,17 +173,13 @@ class Board:
 
     def __getitem__(self, rowid):
         """ Nice accessor for board.
-
         Works nicely with BoardColumnAccessProxy to offer:
          * accessing with floats - they will be just truncated
          * accessing with out-of-bounds values – the board wraps around (forms torus)
-
         >>> a = Board(3,4); a[0][1] = 123; a[0][1]
         123
-
         >>> a = Board(3,4); a[0][1] = 123; a[0+3*1000][1-4*667]
         123
-
         >>> a = Board(3,4); a[0.5][1.2] = 123; a[0.99][1.99+4*667]
         123
         """
@@ -215,7 +201,6 @@ class Board:
 
     def __str__(self):
         """ Pretty-printer for the console.
-
         >>> print(Board(2,5))
         +-----+
         |     |
@@ -260,10 +245,8 @@ class Board:
           * even though two birds are close to each other, we take into account the influence
             when going around the wrapping.
         I've picked the second one. Shall be more fun :)
-
         >>> list( Board.distances_wrapped_on_torus(0, 0, 1, 1, 3, 5) )
         [(1, 1), (1, -4), (-2, -4), (-2, 1)]
-
         #  |        |        |        |
         #  |        |        |        +- distance when wrapping around top border
         #  |        |        +---------- distance when wrapping around top and left border
@@ -279,10 +262,8 @@ class Board:
         #  +-----+
         #                      A    A    A
         #                       B    B    B
-
         >>> list( Board.distances_wrapped_on_torus(0, 0, 1, 1, 2, 2) )
         [(1, 1), (1, -1), (-1, -1), (-1, 1)]
-
         #
         #                  A A A 
         #  +--+             B B B
@@ -346,7 +327,6 @@ class Bird:
     def __str__(self):
         """ Print the bird as an arrow.
         This allows for some nicer debugging since we know the direction of a bird.
-
         >>> print(Bird(0))
         →
         >>> print(Bird(m.pi))
@@ -383,13 +363,10 @@ class Bird:
 
     def step(self, old_x, old_y):
         """ Return new position where the bird wants to be.
-
         >>> Bird(0).step(0,0)
         (0, 5)
-
         >>> Bird(m.pi).step(0,0)
         (0, -5)
-
         >>> Bird(m.pi / 2).step(0,0)
         (5, 0)
         """
@@ -400,22 +377,16 @@ class Bird:
 
     def newangle(self, other_birds: ':: (distance_x, distance_y)'):
         """ Calculate new angle basing on other birds.
-
         >>> b=Bird(0);    print(b.newangle(  []  ),      b)
         0.0 →
-
         >>> b=Bird(m.pi); print(b.newangle(  []  ),      b)
         3.141592653589793 ←
-
         >>> b=Bird(0);    print(b.newangle(  [(2,0)]  ), b)
         1.5707963267948966 ↓
-
         >>> b=Bird(0);    print(b.newangle(  [(-2,0)]  ), b)
         4.71238898038469 ↑
-
         >>> b=Bird(0);    print(b.newangle(  [(0,2)]  ), b)
         0.0 →
-
         >>> b=Bird(0);    print(b.newangle(  [(0,-2)]  ), b)
         3.141592653589793 ←
         """
@@ -502,6 +473,39 @@ def gamestep():
     game.step()
     return str(game)
 
+apps = bottle.app()
+
+class EnableCors(object):
+    name = 'enable_cors'
+    api = 2
+
+    def apply(self, fn, context):
+        def _enable_cors(*args, **kwargs):
+            # set CORS headers
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Origin, Accept, Content-Type, X-Requested-With, X-CSRF-Token'
+
+            if bottle.request.method != 'OPTIONS':
+                # actual request; reply with the actual response
+                return fn(*args, **kwargs)
+
+        return _enable_cors
+
+
+
+
+@route('/cors', method=['OPTIONS', 'GET'])
+def lvambience():
+    response.headers['Content-type'] = 'application/json'
+    return '[1]'
+	
+@route('/<filepath:path>')
+def server_static(filepath):
+    return static_file(filepath, root='C:\\Miss\\page')
+	
 if __name__ == '__main__':
     # main()
-    run(host='localhost', port=8080)
+    apps.install(EnableCors())
+    apps.run(host='localhost', port=8080)
+	

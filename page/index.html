@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="stylesheet" href="birds.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+<script src="birds.js"></script>
+<title>Birds</title>
+</head>
+<body><form>
+<input type ="submit" id ="step" value = "Step"></form>
+<input type ="submit" id ="play" value = "PLAY"></form>
+<form id ="form">
+<table>
+<tr>
+	<td>Rows
+	</td>
+	<td><input type="text" id="rows" value = "40" />
+	</td>
+</tr>
+<tr>
+	<td>Columns
+	</td>
+	<td><input type="text" id="columns" value = "40" />
+	</td>
+</tr>
+<tr>
+	<td>Birds
+	</td>
+	<td><input type="text" id="birds" value = "100"/>
+	</td>
+</tr>
+</table>
+<input type="submit" id ="start" value="Start!"/>
+</form>
+<div id="responseText"></div>
+
+<svg id="svg">
+</svg>
+</body>
+
+</html>

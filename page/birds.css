@@ -1,0 +1,25 @@
+.div{
+	background-color: #555;
+}
+.cell {
+}
+
+.cell.wall {
+  fill: #000;
+  stroke: #000;
+}
+
+.cell.air {
+  fill: #ddd;
+  stroke: #999;
+}
+
+.cell.blue {
+  stroke: blue;
+  stroke-opacity: .8;
+}
+
+.cell.red {
+  stroke: red;
+  stroke-opacity: .8;
+}
