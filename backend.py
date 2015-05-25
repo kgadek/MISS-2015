@@ -28,7 +28,7 @@ from pathlib import Path
 # ##############################################################################
 N = 50 # [m] rows
 M = 100 # [m] columns
-V = 5 # [m/s] velocity of [European] unladden swallow is 11, but let's limit this
+V = 4 # [m/s] velocity of [European] unladden swallow is 11, but let's limit this
 
 
 # ##############################################################################
