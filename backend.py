@@ -271,10 +271,26 @@ class Board:
             else:
                 log.debug("adding random bird fial'd: position (%d,%d) is already occupied. Retrying", x, y)
 
+    def add_random_block(self):
+        """ Generate a random Bird and place it on the board. """
+        while True:
+            x = random.randrange(0, self.rows)
+            y = random.randrange(0, self.cols)
+            if not self[x][y]:
+                self.add_block(x, y)
+
+                log.info("adding random block randomly to the board. row,col = (%d,%d)", x, y)
+                break
+            else:
+                log.debug("adding random block fial'd: position (%d,%d) is already occupied. Retrying", x, y)
+
     def add_bird(self, x, y, a):
         bird = Bird(radians_normalize(a))
         self[x][y] = bird
         self.birds.append((x,y,bird))
+
+    def add_block(self, x, y):
+        self[x][y] = Block()
 
     @staticmethod
     def distances_wrapped_on_torus(x, y, xx, yy, rows, cols):
@@ -354,6 +370,16 @@ class Board:
             )
 
 
+class Block:
+    def __str__(self):
+        return '#'
+
+    def step(self, x, y):
+        return x, y
+
+    def newangle(self, other_birds):
+        return 0
+
 # ##############################################################################
 # 🐦
 # ##############################################################################
@@ -423,7 +449,7 @@ class Bird:
         log.debug("old: (%d,%d) new: (%d,%d)", old_x, old_y, new_x, new_y)
         return new_x, new_y
 
-    def newangle(self, other_birds: ':: (distance_x, distance_y)'):
+    def newangle(self, other_birds: ':: (distance_x, distance_y)', other_blocks: ':: (distance_x, distance_y'):
         """ Calculate new angle basing on other birds.
         
         >>> b=Bird(0);    print(b.newangle(  []  ),      b)
@@ -445,14 +471,23 @@ class Bird:
         3.141592653589793 ←
         """
         other_birds = list(other_birds)
-        if other_birds:  # short-circuit in case of only one bird: do not change direction
-            oldangle = self.direction
-            influences = [ self.distance_fun( m.sqrt(dx**2 + dy**2) ) for dx, dy in other_birds ]
-            sum_drows = sum( 1. * distance_x for (distance_x, distance_y), influence in zip(other_birds, influences) )
-            sum_dcols = sum( 1. * distance_y for (distance_x, distance_y), influence in zip(other_birds, influences) )
-            self.direction = radians_normalize(-m.atan2(sum_dcols, sum_drows) + m.pi/2)
-            # TODO [kgdk] 29 mar 2015: make the change of direction a bit slower
-            log.debug("bird %d old angle = %.4f new angle = %.4f", self.id, oldangle, self.direction)
+        other_blocks = list(other_blocks)
+            
+        oldangle = self.direction
+        influences = [ self.distance_fun( m.sqrt(dx**2 + dy**2) ) for dx, dy in other_birds ]
+        influences2= [ -3 * self.distance_fun( m.sqrt(dx**2 + dy**2) ) for dx, dy in other_blocks ]
+        sum_drows = sum( 1. * distance_x
+                         for (distance_x, distance_y), influence
+                         in chain(zip(other_birds, influences),
+                                  zip(other_influences, influences2)) )
+        sum_dcols = sum( 1. * distance_y
+                         for (distance_x, distance_y), influence
+                         in chain(zip(other_birds, influences),
+                                  zip(other_influences, influences2)) )
+        self.direction = radians_normalize(-m.atan2(sum_dcols, sum_drows) + m.pi/2)
+        # TODO [kgdk] 29 mar 2015: make the change of direction a bit slower
+        log.debug("bird %d old angle = %.4f new angle = %.4f", self.id, oldangle, self.direction)
+
         return self.direction
 
 
@@ -471,8 +506,9 @@ def gamestep():
     global game
     if not game:
         game = Board(128,256)
-        for i in range(30):
+        for i in range(1):
             game.add_random_bird()
+        game.add_random_block()
 
     game.step()
 
