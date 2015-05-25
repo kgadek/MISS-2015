@@ -160,6 +160,7 @@ class Board:
         self.rows = rows
         self.cols = cols
         self.matrix = self._newboard(rows,cols)
+        self.birds = []
 
     @staticmethod
     def _newboard(rows,cols):
@@ -203,14 +204,14 @@ class Board:
         """ Perform one step of the simulation. """
         log.debug("Board.step")
         old_board = self.matrix
+        old_birds = self.birds
         self.matrix = self._newboard(self.rows, self.cols)
-        for rowid, row in enumerate(old_board):
-            for colid, elem in enumerate(row):
-                # ignore errors (when the elem is None). "Easier to ask for forgiveness than permission"!
-                with suppress(AttributeError):
-                    x,y = elem.step(rowid, colid)
-                    log.debug("The element (bird? plane? superman?) decided to move from (%d,%d) to (%s,%s)",rowid,colid,x,y)
-                    self[x][y] = elem
+        self.birds  = []
+        for row, col, bird in old_birds:
+            nrow, ncol = bird.step(row, col)
+            self[nrow][ncol] = bird
+            self.birds.append((nrow, ncol, bird))
+        
 
     def __str__(self):
         """ Pretty-printer for the console.
@@ -271,7 +272,9 @@ class Board:
                 log.debug("adding random bird fial'd: position (%d,%d) is already occupied. Retrying", x, y)
 
     def add_bird(self, x, y, a):
-        self[x][y] = Bird(radians_normalize(a))
+        bird = Bird(radians_normalize(a))
+        self[x][y] = bird
+        self.birds.append((x,y,bird))
 
     @staticmethod
     def distances_wrapped_on_torus(x, y, xx, yy, rows, cols):
