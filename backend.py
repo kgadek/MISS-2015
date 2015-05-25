@@ -505,8 +505,8 @@ def mknew(rows,cols,birds):
 def gamestep():
     global game
     if not game:
-        game = Board(128,256)
-        for i in range(1):
+        game = Board(256,128)
+        for i in range(30):
             game.add_random_bird()
         game.add_random_block()
 
