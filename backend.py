@@ -451,61 +451,6 @@ class Bird:
             # TODO [kgdk] 29 mar 2015: make the change of direction a bit slower
             log.debug("bird %d old angle = %.4f new angle = %.4f", self.id, oldangle, self.direction)
         return self.direction
-    
-
-
-
-
-# ##############################################################################
-# the program
-# ##############################################################################
-def main():
-    # start with unit tests. Because why not?
-    import doctest
-    doctest.testmod()
-
-    board = Board(10, 20)
-    board.add_random_bird()
-    board.add_random_bird()
-    board.add_random_bird()
-    board.add_random_bird()
-    board.add_random_bird()
-    board.add_random_bird()
-    board.add_random_bird()
-    board.add_random_bird()
-    board.add_random_bird()
-    board.add_random_bird()
-    print(board)
-
-
-    for i in range(109):
-        board.newangles()
-        board.step()
-    print(board)
-
-
-
-    # board.newangles()
-    # board.step()
-    # print(board)
-
-    # for i in range(10):
-    #     for i in range(17):
-    #         board.newangles()
-    #         board.step()
-    #     print(board)
-
-    # board = new_board()
-    # board[30][40] = Bird(0)
-    # print_board(board)
-
-    # newboard = new_board()
-    # for rowid, row in enumerate(board):
-    #     for colid, elem in enumerate(row):
-    #         with suppress(AttributeError):
-    #             x,y = elem.step(rowid, colid)
-    #             newboard[x % M][y % N] = elem
-    # print_board(newboard)
 
 
 game = None
@@ -534,26 +479,6 @@ def gamestep():
         return str(game)
 
 
-apps = bottle.app()
-
-class EnableCors(object):
-    name = 'enable_cors'
-    api = 2
-
-    def apply(self, fn, context):
-        def _enable_cors(*args, **kwargs):
-            # set CORS headers
-            response.headers['Access-Control-Allow-Origin'] = '*'
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, OPTIONS'
-            response.headers['Access-Control-Allow-Headers'] = 'Origin, Accept, Content-Type, X-Requested-With, X-CSRF-Token'
-
-            if bottle.request.method != 'OPTIONS':
-                # actual request; reply with the actual response
-                return fn(*args, **kwargs)
-
-        return _enable_cors
-
-
 
 @route('/cors', method=['OPTIONS', 'GET'])
 def lvambience():
@@ -570,10 +495,8 @@ def default():
     return bottle.redirect("/index.html")
 	
 if __name__ == '__main__':
-    # main()
     import doctest
     doctest.testmod()
-
-    apps.install(EnableCors())
+    apps = bottle.app()
     apps.run(host='localhost', port=8080)
 	
