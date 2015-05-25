@@ -161,6 +161,7 @@ class Board:
         self.cols = cols
         self.matrix = self._newboard(rows,cols)
         self.birds = []
+        self.blocks = []
 
     @staticmethod
     def _newboard(rows,cols):
@@ -207,11 +208,12 @@ class Board:
         old_birds = self.birds
         self.matrix = self._newboard(self.rows, self.cols)
         self.birds  = []
+        for row, col, block in self.blocks:
+            self[row][col] = block
         for row, col, bird in old_birds:
             nrow, ncol = bird.step(row, col)
             self[nrow][ncol] = bird
             self.birds.append((nrow, ncol, bird))
-        
 
     def __str__(self):
         """ Pretty-printer for the console.
@@ -247,7 +249,7 @@ class Board:
         >>> from backend import *; board=Board(10, 20); board.add_bird(2,1,0); board.add_bird(1,2,0); board.add_bird(0,0,0);  json.loads(board.tojson()) == [{'y': 0, 'x': 0, 'dir': 0.0, 'xy': 0}, {'y': 1, 'x': 2, 'dir': 0.0, 'xy': 12}, {'y': 2, 'x': 1, 'dir': 0.0, 'xy': 21}]
         True
         """
-        elems = [ {"x": y, "y": x, "xy": x*self.rows + y, "dir": radians_normalize(elem.direction)}
+        elems = [ {"x": y, "y": x, "xy": x*self.rows + y, "disp": elem.disp_num()}
                   for y, row
                   in enumerate(self.matrix)
                   for x, elem
@@ -290,7 +292,9 @@ class Board:
         self.birds.append((x,y,bird))
 
     def add_block(self, x, y):
-        self[x][y] = Block()
+        block = Block()
+        self[x][y] = block
+        self.blocks.append((x,y,block))
 
     @staticmethod
     def distances_wrapped_on_torus(x, y, xx, yy, rows, cols):
@@ -348,10 +352,9 @@ class Board:
         # …okay, okay, maybe just a bit sorry
         # but even more lazy
         # TODO [kgdk] 28 mar 2015: fix
-        birds = [(x,rowid,colid)
-                    for rowid, row in enumerate(self.matrix)
-                    for colid, x in enumerate(row)
-                    if x
+        birds = [(obj,x,y)
+                 for (x,y,obj)
+                 in chain(self.birds, self.blocks)
                 ]
 
         # deathmatch! each bird agains every other
@@ -371,10 +374,17 @@ class Board:
 
 
 class Block:
+    def __init__(self):
+        log.debug("NEW BLOCK")
+
+    def disp_num(self):
+        return 2
+
     def __str__(self):
         return '#'
 
     def step(self, x, y):
+        log.debug("Block.step: return %d x %d", x, y)
         return x, y
 
     def newangle(self, other_birds):
@@ -394,6 +404,9 @@ class Bird:
         Bird.bird_id += 1
         # TODO [kgdk] 29 mar 2015: add "importance", so we could model diverse
         # popularity / influence each bird generates
+
+    def disp_num(self):
+        return 1
 
     def __str__(self):
         """ Print the bird as an arrow.
@@ -449,7 +462,7 @@ class Bird:
         log.debug("old: (%d,%d) new: (%d,%d)", old_x, old_y, new_x, new_y)
         return new_x, new_y
 
-    def newangle(self, other_birds: ':: (distance_x, distance_y)', other_blocks: ':: (distance_x, distance_y'):
+    def newangle(self, other_birds: ':: (distance_x, distance_y)'):
         """ Calculate new angle basing on other birds.
         
         >>> b=Bird(0);    print(b.newangle(  []  ),      b)
@@ -471,19 +484,15 @@ class Bird:
         3.141592653589793 ←
         """
         other_birds = list(other_birds)
-        other_blocks = list(other_blocks)
-            
+
         oldangle = self.direction
         influences = [ self.distance_fun( m.sqrt(dx**2 + dy**2) ) for dx, dy in other_birds ]
-        influences2= [ -3 * self.distance_fun( m.sqrt(dx**2 + dy**2) ) for dx, dy in other_blocks ]
         sum_drows = sum( 1. * distance_x
                          for (distance_x, distance_y), influence
-                         in chain(zip(other_birds, influences),
-                                  zip(other_influences, influences2)) )
+                         in chain(zip(other_birds, influences)))
         sum_dcols = sum( 1. * distance_y
                          for (distance_x, distance_y), influence
-                         in chain(zip(other_birds, influences),
-                                  zip(other_influences, influences2)) )
+                         in chain(zip(other_birds, influences)))
         self.direction = radians_normalize(-m.atan2(sum_dcols, sum_drows) + m.pi/2)
         # TODO [kgdk] 29 mar 2015: make the change of direction a bit slower
         log.debug("bird %d old angle = %.4f new angle = %.4f", self.id, oldangle, self.direction)
@@ -506,14 +515,59 @@ def gamestep():
     global game
     if not game:
         game = Board(256,128)
+
+        game.add_block(34,26)
+        game.add_block(33,27)
+        game.add_block(34,27)
+        game.add_block(35,27)
+        game.add_block(32,28)
+        game.add_block(33,28)
+        game.add_block(34,28)
+        game.add_block(35,28)
+        game.add_block(36,28)
+        game.add_block(31,29)
+        game.add_block(32,29)
+        game.add_block(33,29)
+        game.add_block(34,29)
+        game.add_block(35,29)
+        game.add_block(36,29)
+        game.add_block(37,29)
+        game.add_block(30,30)
+        game.add_block(31,30)
+        game.add_block(32,30)
+        game.add_block(33,30)
+        game.add_block(34,30)
+        game.add_block(35,30)
+        game.add_block(36,30)
+        game.add_block(37,30)
+        game.add_block(38,30)
+        game.add_block(31,31)
+        game.add_block(32,31)
+        game.add_block(33,31)
+        game.add_block(34,31)
+        game.add_block(35,31)
+        game.add_block(36,31)
+        game.add_block(37,31)
+        game.add_block(32,32)
+        game.add_block(33,32)
+        game.add_block(34,32)
+        game.add_block(35,32)
+        game.add_block(36,32)
+        game.add_block(33,33)
+        game.add_block(34,33)
+        game.add_block(35,33)
+        game.add_block(34,34)
         for i in range(30):
             game.add_random_bird()
-        game.add_random_block()
+        for i in range(6):
+            game.add_random_block()
 
     game.step()
 
     if bottle.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return game.tojson()
+        res = game.tojson()
+        log.debug("JSON: %s", res)
+        return res
     else:
         return str(game)
 
