@@ -1,8 +1,8 @@
 var goL = (function(){
-  var goL ={},bits=64*128;
+  var goL ={},bits=128*256;
   var dt; // grid bits
   var i;  // which dt is current?
-  var sp=20; // speed of animation. smaller = faster.
+  var sp=0; // speed of animation. smaller = faster.
   var timeClr ;// for clearing Timeout.
   var editMode=false;
   
@@ -37,9 +37,9 @@ var goL = (function(){
   
   goL.clearGrid();
   var rects = d3.select("svg").selectAll("rect").data(d3.range(0,bits)).enter().append("rect")
-      .attr("x",function(d){ return (d&127)*7;})
-      .attr("y",function(d){ return (d>>>7)*7;})
-      .attr("width",7).attr("height",7)
+      .attr("x",function(d){ return (d&255)*5;})
+      .attr("y",function(d){ return (d>>>8)*5;})
+      .attr("width",5).attr("height",5)
       .style("fill",function(d){ return goL.get(d)==1? "steelblue":"white";})
       .on("click",function(d){ return switchSq(d);});
   
@@ -49,7 +49,7 @@ var goL = (function(){
     
     if(arguments.length > 0){
       d3.range(0,ar.length).forEach(function(y){d3.range(0,ar[0].length)
-        .forEach(function(x){goL.put(y*128+x,ar[y][x],i)})});
+        .forEach(function(x){goL.put(y*256+x,ar[y][x],i)})});
     } 
     rects.style("fill",function(d){ return goL.get(d)==1? "steelblue":"white";});
   }
