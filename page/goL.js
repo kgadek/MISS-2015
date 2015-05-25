@@ -62,8 +62,6 @@ var goL = (function(){
         resjson = JSON.parse(res);
         resptr = 0;
 
-        console.log("YAYAYA!", res.me);
-
         for(var p=0; p<bits; p++){
           if(resjson[resptr]['xy'] === p){
             goL.put(p, 1, 1-i);
