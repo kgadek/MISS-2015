@@ -335,7 +335,7 @@ class Block:
             res = 0.
 
         if res < 0.0:
-            log.info("Block.dist = %.3f", res)
+            log.debug("Block.dist = %.3f", res)
         return res
 
     def __init__(self):
@@ -371,7 +371,7 @@ class Bird:
         else:
             res = max(0., 1-(x-b)/(b-a))
         if res > 0.:
-            log.info("Bird.dist = %.3f", res)
+            log.debug("Bird.dist = %.3f", res)
         return res
 
     def __init__(self, direction):
@@ -472,7 +472,20 @@ class Bird:
                          for (distance_x, distance_y), influence
                          in chain(zip(other_birds, influences),
                                   zip(other_blocks, influences2)))
-        self.direction = radians_normalize(-m.atan2(sum_dcols, sum_drows) + m.pi/2)
+        
+        newangle = radians_normalize(-m.atan2(sum_dcols, sum_drows) + m.pi/2)
+
+
+
+        diffangle = radians_normalize(newangle - oldangle) - m.pi
+        if diffangle < - m.pi / 8.:
+            diffangle = - m.pi / 8
+        elif diffangle > m.pi / 8:
+            diffangle = m.pi / 8.
+
+        newangle = radians_normalize(diffangle + oldangle)
+
+        self.direction = newangle
         # TODO [kgdk] 29 mar 2015: make the change of direction a bit slower
         log.debug("bird %d old angle = %.4f new angle = %.4f", self.id, oldangle, self.direction)
 
