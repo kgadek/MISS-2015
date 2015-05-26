@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("backend")
 
 import random
-random.seed(a=2)  # TODO: seed hardcoded for reproductibility while debugging. REMOVE at will
+random.seed()
 
 import math as m
 import itertools
@@ -14,6 +14,7 @@ import copy
 from operator   import itemgetter
 from functools  import partial
 from contextlib import suppress
+from itertools  import chain
 
 import bottle
 from bottle import route, run, template, response, static_file
@@ -35,16 +36,6 @@ V = 4 # [m/s] velocity of [European] unladden swallow is 11, but let's limit thi
 # tools
 # ##############################################################################
 
-def frange(start, stop, step):
-    """ Helper. Generate range of floats.
-    >>> list(frange(1.0, 2.0, 0.25))
-    [1.0, 1.25, 1.5, 1.75]
-    """
-    yield from itertools.takewhile(
-        lambda x: x < stop,
-        itertools.count(start, step)
-    )
-
 infinity = float("inf")
 
 def radians_normalize(x):
@@ -62,52 +53,6 @@ def radians_normalize(x):
     log.debug("normalizing to range [0;2π): %.4f → %.4f", x, res)
     return res
 
-def df(x,a,b):
-    """ First derivative of distance function """
-    div_bx = 1./(b+x)
-    return 1./x * m.sin(div_bx) - m.log(a*x) * m.cos(div_bx) * div_bx**2
-
-def ddf(x,a,b):
-    """ Second derivative of distance function """
-    div_bx = 1./(b+x)
-    return m.log(a * x) * (2*m.cos(div_bx) * div_bx**3 - m.sin(div_bx) * div_bx**4) - m.sin(div_bx) / x**2 - 2*m.cos(div_bx) * div_bx**2 / x
-
-def f(x,a,b):
-    """ The distance function. This drives the bird.
-
-    >>> all( f(1/a, a, 1) == 0.0 for a in range(1,15) )
-    True
-
-    # Assert the maximum of a function is at the right place
-
-    >>> newton_find(partial(df,a=3,b=5), partial(ddf,a=3,b=5), 1./3)
-    3.6303997623856503
-
-    # Verify (sort of) that function is strictly decreasing
-
-    >>> f(100, 1, 1) > f(1000, 1, 1) > f(10000, 1, 1) > f(100000, 1, 1) > f(1000000, 1, 1)
-    True
-
-    >>> f(0, 1, 1)
-    -inf
-    """
-    try:
-        return m.log(a * x) * m.sin(1./(b+x))
-    except Exception as e:
-        return -infinity
-    
-
-def newton_find(f, df, x, iters=10):
-    log.debug("newton_find x=%.4f", x)
-    for i in range(iters):
-        log.debug("  iteration %d, x=%.4f", i, x)
-        log.debug("    df(%.4f) = %.4f", x, df(x))
-        log.debug("    f(%.4f) = %.4f", x, f(x))
-        if df(x) == 0:
-            log.debug("    df(%.4f) == 0, returning %.4f", x, x)
-            return x
-        x -= f(x)/df(x)
-    return x
 
 def euclid_dist(xy1, xy2):
     """ Euclidean distance.
@@ -213,7 +158,7 @@ class Board:
         for row, col, bird in old_birds:
             nrow, ncol = bird.step(row, col)
             self[nrow][ncol] = bird
-            self.birds.append((nrow, ncol, bird))
+            self.birds.append((nrow % self.rows, ncol % self.cols, bird))
 
     def __str__(self):
         """ Pretty-printer for the console.
@@ -354,7 +299,7 @@ class Board:
         # TODO [kgdk] 28 mar 2015: fix
         birds = [(obj,x,y)
                  for (x,y,obj)
-                 in chain(self.birds, self.blocks)
+                 in self.birds
                 ]
 
         # deathmatch! each bird agains every other
@@ -369,11 +314,30 @@ class Board:
                                                      self.rows, self.cols
                                                     )
                     for _, (b, b_x, b_y) in g
+                ),
+                itertools.chain.from_iterable(
+                    Board.distances_wrapped_on_torus(k_x, k_y, # of all of the blocks
+                                                     b_x, b_y,
+                                                     self.rows, self.cols
+                                                    )
+                    for (b_x, b_y, _) in self.blocks  
                 )
             )
 
 
 class Block:
+    @staticmethod
+    def dist(x):
+        a = 30.
+        if 0. <= x <= a:
+            res = -((1. - x / a) * 30.) ** 2
+        else:
+            res = 0.
+
+        if res < 0.0:
+            log.info("Block.dist = %.3f", res)
+        return res
+
     def __init__(self):
         log.debug("NEW BLOCK")
 
@@ -387,7 +351,7 @@ class Block:
         log.debug("Block.step: return %d x %d", x, y)
         return x, y
 
-    def newangle(self, other_birds):
+    def newangle(self, other_birds, other_blocks):
         return 0
 
 # ##############################################################################
@@ -395,15 +359,25 @@ class Block:
 # ##############################################################################
 class Bird:
     bird_id = 0
+
+    @staticmethod
+    def dist(x):
+        a = 2.
+        b = 15.
+        if 0. <= x <= a:
+            res = ((1. - x / a) * 10.) ** 2
+        elif x <= b:
+            res = (x-a)/(b-a)
+        else:
+            res = max(0., 1-(x-b)/(b-a))
+        if res > 0.:
+            log.info("Bird.dist = %.3f", res)
+        return res
+
     def __init__(self, direction):
         self.direction = radians_normalize(direction)
-        # distance_fun is made separate for each bird so to allow some diversity,
-        # e.g. birds who like crowds, lone birds, birds-sociopaths, etc.
-        self.distance_fun = partial(f, a=1., b=1.)
         self.id = Bird.bird_id
         Bird.bird_id += 1
-        # TODO [kgdk] 29 mar 2015: add "importance", so we could model diverse
-        # popularity / influence each bird generates
 
     def disp_num(self):
         return 1
@@ -462,7 +436,7 @@ class Bird:
         log.debug("old: (%d,%d) new: (%d,%d)", old_x, old_y, new_x, new_y)
         return new_x, new_y
 
-    def newangle(self, other_birds: ':: (distance_x, distance_y)'):
+    def newangle(self, other_birds: ':: (distance_x, distance_y)', other_blocks):
         """ Calculate new angle basing on other birds.
         
         >>> b=Bird(0);    print(b.newangle(  []  ),      b)
@@ -484,15 +458,20 @@ class Bird:
         3.141592653589793 ←
         """
         other_birds = list(other_birds)
+        other_blocks = list(other_blocks)
+
 
         oldangle = self.direction
-        influences = [ self.distance_fun( m.sqrt(dx**2 + dy**2) ) for dx, dy in other_birds ]
+        influences = [ Bird.dist( m.sqrt(dx**2 + dy**2) ) for dx, dy in other_birds ]
+        influences2= [ Block.dist(m.sqrt(dx**2 + dy**2) ) for dx, dy in other_blocks ]
         sum_drows = sum( 1. * distance_x
                          for (distance_x, distance_y), influence
-                         in chain(zip(other_birds, influences)))
+                         in chain(zip(other_birds, influences),
+                                  zip(other_blocks, influences2)))
         sum_dcols = sum( 1. * distance_y
                          for (distance_x, distance_y), influence
-                         in chain(zip(other_birds, influences)))
+                         in chain(zip(other_birds, influences),
+                                  zip(other_blocks, influences2)))
         self.direction = radians_normalize(-m.atan2(sum_dcols, sum_drows) + m.pi/2)
         # TODO [kgdk] 29 mar 2015: make the change of direction a bit slower
         log.debug("bird %d old angle = %.4f new angle = %.4f", self.id, oldangle, self.direction)
@@ -516,57 +495,40 @@ def gamestep():
     if not game:
         game = Board(256,128)
 
-        game.add_block(34,26)
-        game.add_block(33,27)
-        game.add_block(34,27)
-        game.add_block(35,27)
-        game.add_block(32,28)
-        game.add_block(33,28)
-        game.add_block(34,28)
-        game.add_block(35,28)
-        game.add_block(36,28)
-        game.add_block(31,29)
-        game.add_block(32,29)
-        game.add_block(33,29)
-        game.add_block(34,29)
-        game.add_block(35,29)
-        game.add_block(36,29)
-        game.add_block(37,29)
-        game.add_block(30,30)
-        game.add_block(31,30)
-        game.add_block(32,30)
-        game.add_block(33,30)
-        game.add_block(34,30)
-        game.add_block(35,30)
-        game.add_block(36,30)
-        game.add_block(37,30)
-        game.add_block(38,30)
-        game.add_block(31,31)
-        game.add_block(32,31)
-        game.add_block(33,31)
-        game.add_block(34,31)
-        game.add_block(35,31)
-        game.add_block(36,31)
-        game.add_block(37,31)
-        game.add_block(32,32)
-        game.add_block(33,32)
-        game.add_block(34,32)
-        game.add_block(35,32)
-        game.add_block(36,32)
-        game.add_block(33,33)
-        game.add_block(34,33)
-        game.add_block(35,33)
-        game.add_block(34,34)
-        for i in range(30):
-            game.add_random_bird()
-        for i in range(6):
-            game.add_random_block()
+        r,s=32,1
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=33,2
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=34,3
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=35,4
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=36,5
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=37,6
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=38,5
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=39,4
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=40,3
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=41,2
+        for j in range(-s, s+1): game.add_block(128+j, r)
+        r,s=42,1
+        for j in range(-s, s+1): game.add_block(128+j, r)
 
+        for i in range(100):
+            game.add_random_bird()
+        # for i in range(5):
+        #     game.add_random_block()
+
+    game.newangles()
     game.step()
 
     if bottle.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         res = game.tojson()
-        log.debug("JSON: %s", res)
+        # log.debug("JSON: %s", res)
         return res
     else:
         return str(game)
