@@ -210,7 +210,7 @@ class Board:
             x = random.randrange(0, self.rows)
             y = random.randrange(0, self.cols)
             if not self[x][y]:
-                a = random.uniform(0, 2*m.pi)
+                a = random.uniform(0, 2.*m.pi)
                 self.add_bird(x, y, a)
 
                 log.info("adding random bird randomly to the board. row,col = (%d,%d) angle = %.4f", x, y, a)
