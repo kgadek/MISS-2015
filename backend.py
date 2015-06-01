@@ -14,7 +14,7 @@ import copy
 from operator   import itemgetter
 from functools  import partial
 from contextlib import suppress
-from itertools  import chain
+from itertools  import chain, cycle
 
 import bottle
 from bottle import route, run, template, response, static_file
@@ -29,14 +29,23 @@ from pathlib import Path
 # ##############################################################################
 N = 50 # [m] rows
 M = 100 # [m] columns
-V = 4 # [m/s] velocity of [European] unladden swallow is 11, but let's limit this
+V = 4. # [m/s] velocity of [European] unladden swallow is 11, but let's limit this
+F = 0.125 # influence of bird (range: [0,1])
 
 
 # ##############################################################################
 # tools
 # ##############################################################################
 
-infinity = float("inf")
+def radians_avg(xs, weigths=None):
+    if not weigths:
+        weigths = cycle((1., ))
+    a, b, n = 0., 0., 0.
+    for x, w in zip(xs, weigths):
+        a += w * m.sin(x)
+        b += w * m.cos(x)
+        n += w
+    return m.atan2(a / n, b / n)
 
 def radians_normalize(x):
     """ Normalize to range [0,2π).
@@ -61,11 +70,6 @@ def euclid_dist(xy1, xy2):
 
     >>> euclid_dist((1,0), (0,0))
     1.0
-
-    # euclid_dist is commutative
-
-    >>> all(  euclid_dist((x1,y1),(x2,y2)) == euclid_dist((x2,y2),(x1,y1))  for x1,y1,x2,y2 in itertools.product(list(frange(-2.8, 2.8, 0.7)), repeat=4)  )
-    True
     """
     (x1,x2) = xy1
     (y1,y2) = xy2
@@ -185,13 +189,13 @@ class Board:
         >>> Board(2,5).tojson()
         '[]'
 
-        >>> board=Board(10, 20); board.add_bird(2,1,0);                                                                       json.loads(board.tojson()) == [{"x": 2, "y": 1, "xy": 12, "dir": 0.0}]
+        >>> board=Board(10, 20); board.add_bird(2,1,0);                                                                       json.loads(board.tojson()) == [{'disp': 1, 'x': 2, 'y': 1, 'xy': 12}]
         True
 
-        >>> board=Board(10, 20); board.add_bird(2,1,0); board.add_bird(1,2,0);                                                json.loads(board.tojson()) == [{'y': 1, 'x': 2, 'dir': 0.0, 'xy': 12}, {'y': 2, 'x': 1, 'dir': 0.0, 'xy': 21}]
+        >>> board=Board(10, 20); board.add_bird(2,1,0); board.add_bird(1,2,0);                                                json.loads(board.tojson()) == [{'disp': 1, 'x': 2, 'y': 1, 'xy': 12}, {'disp': 1, 'x': 1, 'y': 2, 'xy': 21}]
         True
 
-        >>> from backend import *; board=Board(10, 20); board.add_bird(2,1,0); board.add_bird(1,2,0); board.add_bird(0,0,0);  json.loads(board.tojson()) == [{'y': 0, 'x': 0, 'dir': 0.0, 'xy': 0}, {'y': 1, 'x': 2, 'dir': 0.0, 'xy': 12}, {'y': 2, 'x': 1, 'dir': 0.0, 'xy': 21}]
+        >>> from backend import *; board=Board(10, 20); board.add_bird(2,1,0); board.add_bird(1,2,0); board.add_bird(0,0,0);  json.loads(board.tojson()) == [{'disp': 1, 'x': 0, 'y': 0, 'xy': 0}, {'disp': 1, 'x': 2, 'y': 1, 'xy': 12}, {'disp': 1, 'x': 1, 'y': 2, 'xy': 21}]
         True
         """
         elems = [ {"x": y, "y": x, "xy": x*self.rows + y, "disp": elem.disp_num()}
@@ -362,12 +366,14 @@ class Bird:
 
     @staticmethod
     def dist(x):
-        a = 2.
-        b = 15.
+        a = 3.
+        b = 20.
         if 0. <= x <= a:
-            res = ((1. - x / a) * 10.) ** 2
+            res = -((1. - x / a) * 10.) ** 2
         elif x <= b:
             res = (x-a)/(b-a)
+        elif x <= 2 * b - a:
+            res = 1. - (x - b) / (b - a)
         else:
             res = max(0., 1-(x-b)/(b-a))
         if res > 0.:
@@ -422,68 +428,74 @@ class Bird:
     def step(self, old_x, old_y):
         """ Return new position where the bird wants to be.
         
-        >>> Bird(0).step(0,0)
-        (0, 5)
+        >>> Bird(0).step(0,0) == (0, V)
+        True
         
-        >>> Bird(m.pi).step(0,0)
-        (0, -5)
+        >>> Bird(m.pi).step(0,0) == (0, -V)
+        True
         
-        >>> Bird(m.pi / 2).step(0,0)
-        (5, 0)
+        >>> Bird(m.pi / 2).step(0,0) == (V, 0)
+        True
         """
         new_x = rand_round(old_x + V * m.sin(self.direction))
         new_y = rand_round(old_y + V * m.cos(self.direction))
         log.debug("old: (%d,%d) new: (%d,%d)", old_x, old_y, new_x, new_y)
         return new_x, new_y
 
-    def newangle(self, other_birds: ':: (distance_x, distance_y)', other_blocks):
+    def newangle(self, other_birds: ':: (distance_x, distance_y)', other_blocks, influence_coeff=None):
         """ Calculate new angle basing on other birds.
         
-        >>> b=Bird(0);    print(b.newangle(  []  ),      b)
-        0.0 →
+        >>> b=Bird(0);    b.newangle(  []      , [])     == 0.0      # →
+        True
         
-        >>> b=Bird(m.pi); print(b.newangle(  []  ),      b)
-        3.141592653589793 ←
+        >>> b=Bird(m.pi); b.newangle(  []      , [])     == m.pi     # ←
+        True
         
-        >>> b=Bird(0);    print(b.newangle(  [(2,0)]  ), b)
-        1.5707963267948966 ↓
+        >>> b=Bird(0);    b.newangle(  [(2,0)] , [], 1.) == 0.0      # →
+        True
         
-        >>> b=Bird(0);    print(b.newangle(  [(-2,0)]  ), b)
-        4.71238898038469 ↑
+        >>> b=Bird(0);    b.newangle(  [(-2,0)], [], 1.) == m.pi     # ←
+        True
         
-        >>> b=Bird(0);    print(b.newangle(  [(0,2)]  ), b)
-        0.0 →
+        >>> b=Bird(0);    b.newangle(  [(0,2)] , [], 1.) == 0.5*m.pi # ↓
+        True
         
-        >>> b=Bird(0);    print(b.newangle(  [(0,-2)]  ), b)
-        3.141592653589793 ←
+        >>> b=Bird(0);    b.newangle(  [(0,-2)], [], 1.) == 1.5*m.pi # ↑
+        True
         """
+        if not influence_coeff:
+            influence_coeff = F
+
         other_birds = list(other_birds)
         other_blocks = list(other_blocks)
+
+        if not other_birds and not other_blocks:
+            return self.direction
 
 
         oldangle = self.direction
         influences = [ Bird.dist( m.sqrt(dx**2 + dy**2) ) for dx, dy in other_birds ]
         influences2= [ Block.dist(m.sqrt(dx**2 + dy**2) ) for dx, dy in other_blocks ]
-        sum_drows = sum( 1. * distance_x
+        sum_drows = sum( 1. * distance_x * influence
                          for (distance_x, distance_y), influence
                          in chain(zip(other_birds, influences),
                                   zip(other_blocks, influences2)))
-        sum_dcols = sum( 1. * distance_y
+        sum_dcols = sum( 1. * distance_y * influence
+                         for (distance_x, distance_y), influence
+                         in chain(zip(other_birds, influences),
+                                  zip(other_blocks, influences2)))
+
+        max_drows = max( distance_x
+                         for (distance_x, distance_y), influence
+                         in chain(zip(other_birds, influences),
+                                  zip(other_blocks, influences2)))
+        max_dcols = max( distance_y
                          for (distance_x, distance_y), influence
                          in chain(zip(other_birds, influences),
                                   zip(other_blocks, influences2)))
         
-        newangle = radians_normalize(-m.atan2(sum_dcols, sum_drows) + m.pi/2)
-
-
-
-        diffangle = radians_normalize(newangle - oldangle) - m.pi
-        if diffangle < - m.pi / 8.:
-            diffangle = - m.pi / 8
-        elif diffangle > m.pi / 8:
-            diffangle = m.pi / 8.
-
-        newangle = radians_normalize(diffangle + oldangle)
+        newangle = radians_normalize( m.atan2(sum_dcols, sum_drows) )
+        newangle = radians_normalize( radians_avg([oldangle, newangle], [1.-influence_coeff, influence_coeff]) )
 
         self.direction = newangle
         # TODO [kgdk] 29 mar 2015: make the change of direction a bit slower
